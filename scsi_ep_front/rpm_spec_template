@@ -1,0 +1,53 @@
+
+%define _unpackaged_files_terminate_build 0 
+Summary: Kernel Driver module(s) for ep devices
+Name: 		%{name}
+Version: 	%{version}
+Release: 	%{release}
+Source: 	%{name}-%{version}.tgz
+Group:          System Environment/Kernel
+
+License:	GPL
+
+#BuildRequires: redhat-rpm-config
+BuildRoot:    %{_tmppath}/%{name}-%{version}
+
+%description
+EP SCSI front Driver for SDI Card.
+
+%prep
+%setup -q
+
+%build
+%{__make}
+
+%install
+rm -rf $RPM_BUILD_ROOT
+mkdir $RPM_BUILD_ROOT
+%makeinstall INSTALL_MOD_PATH=$RPM_BUILD_ROOT
+
+%files
+%defattr(-,root,root)
+/lib/modules/*
+/etc/modprobe.d/*
+
+%post
+/sbin/depmod -a
+if [ "$1" == "2" ];then
+    echo "OK: update %{name} rpm success."
+else
+    echo "OK: install %{name} rpm success."
+fi
+echo "Please reboot the system or reload the %{name} driver to take effect!"
+
+%postun
+/sbin/depmod -a
+if [ "$1" == "0" ];then
+    echo "OK: uninstall %{name} rpm success."
+    echo "Please reboot the system or manually rmmod the %{name} driver to disable it!"
+fi
+
+%clean
+%{__rm} -rf $RPM_BUILD_ROOT
+
+
