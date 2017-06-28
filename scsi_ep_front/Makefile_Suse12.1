@@ -1,0 +1,124 @@
+# Comment/uncomment the following line to enable/disable debugging
+#DEBUG = y
+
+# for driver version begin
+DRV_BUILD_TIME := $(shell date +"%Y-%m-%d %H:%M:%S")
+ifeq ($(DRV_BUILD_TIME), )
+    DRV_BUILD_TIME := '--'
+endif
+
+SVN := $(shell command -v svn > /dev/null 2>&1 && echo "1")
+ifeq ($(SVN), 1)
+    SVN_VERSION := $(shell svn info $(obj) | grep '^Last Changed Rev' | cut -d ' ' -f4)
+endif
+ifeq ($(SVN_VERSION), )
+    SVN_VERSION := '--'
+endif
+
+DRV_DES := $(shell echo "BUILD_TIME[$(DRV_BUILD_TIME)], SVN[$(SVN_VERSION)]")
+DRV_VER := $(shell [ -f $(obj)/buildversion ] && cat $(obj)/buildversion)
+ifeq ($(DRV_VER), )
+    DRV_VER := '--'
+endif
+EXTRA_CFLAGS += -DDRV_VERSION='"$(DRV_VER)"' -DDRV_DESCRIPTION='"${DRV_DES}"'
+# for driver version end
+
+ifeq ($(DEBUG),y)
+  DEBFLAGS = -O -g -DHW_DEBUG # "-O" is needed to expand inlines
+else
+  DEBFLAGS = -O2
+endif
+EXTRA_CFLAGS += $(DEBFLAGS) -I$(LDDINC)
+EXTRA_CFLAGS += -Wno-date-time
+EXTRA_CFLAGS += -Wno-error=date-time
+
+CFILES := epfront_transfer.o \
+		  epfront_main.o \
+		  epfront_sysfs.o
+
+DRIVER_NAME := scsi_ep_front
+
+#KERNELDIR ?= /lib/modules/$(shell uname -r)/build
+#KERNELDIR ?= /usr1/f00346856/3.0.101-63-default/
+#KERNELDIR ?= /usr1/f00346856/2.6.32-504.el6.x86_64/build/
+KERNELDIR ?= /usr1/f00346856/linux-3.12.49-11-obj/x86_64/default/
+ifneq ($(KERNELRELEASE),) 
+
+$(DRIVER_NAME)-objs := $(CFILES:.c=.o)
+obj-m   +=   $(DRIVER_NAME).o		
+		  
+else
+PWD       := $(shell pwd)
+
+modules:
+	$(MAKE) ARCH=x86_64 CROSS_COMPILE=  -C $(KERNELDIR) M=$(PWD) LDDINC=$(PWD) modules
+
+endif
+
+TARGET := $(DRIVER_NAME).ko
+
+# set the install path
+#KERNELINST := /lib/modules/$(shell uname -r)/
+#KERNELINST ?= /lib/modules/3.0.101-63-default/
+#KERNELINST ?= /lib/modules/2.6.32-504.el6.x86_64/
+KERNELINST ?= /lib/modules/3.12.49-11-default/
+
+INSTDIR := $(KERNELINST)/kernel/drivers/scsi/$(DRIVER_NAME)
+#INSTDIR := $(KERNELDIR)/kernel/drivers/scsi/
+MODPROBE_CONF_DIR  := /etc/modprobe.d/
+ABSOLUTE_MOD_INSTDIR := $(INSTALL_MOD_PATH)$(INSTDIR)
+ABOSULTE_MODPROBE_CONF_DIR := $(INSTALL_MOD_PATH)$(MODPROBE_CONF_DIR)
+MODPROBE_CONF_FILE := $(ABOSULTE_MODPROBE_CONF_DIR)/$(DRIVER_NAME).conf
+
+# depmod version
+DEPVER := $(shell /sbin/depmod -V 2>/dev/null | awk 'BEGIN {FS="."} NR==1 {print $$2}')
+
+install:
+	# remove all old versions of the driver
+	find $(INSTALL_MOD_PATH)/$(KERNELINST) -name $(TARGET) -exec rm -f {} \; || true
+
+	# create directory for the module
+	if [ ! -d $(ABSOLUTE_MOD_INSTDIR) ] ; then \
+		mkdir -p $(ABSOLUTE_MOD_INSTDIR) ; \
+	fi
+	if [ ! -d $(ABOSULTE_MODPROBE_CONF_DIR) ] ; then \
+		mkdir -p $(ABOSULTE_MODPROBE_CONF_DIR) ; \
+	fi
+
+	# install the modules
+	install -D -m 644 $(TARGET) $(ABSOLUTE_MOD_INSTDIR)/$(TARGET)
+	echo "install $(DRIVER_NAME) /sbin/modprobe --ignore-install $(DRIVER_NAME) --allow-unsupported" > $(MODPROBE_CONF_FILE)
+
+ifeq (,$(INSTALL_MOD_PATH) )
+/sbin/depmod -a || true
+else
+ifeq ($(DEPVER),1)
+/sbin/depmod -r $(INSTALL_MOD_PATH) -a || true
+#else
+#/sbin/depmod -b $(INSTALL_MOD_PATH) -a -n $(KVERSION) > /dev/null || true
+endif
+endif
+
+uninstall:
+	if [ -e $(ABSOLUTE_MOD_INSTDIR)/$(TARGET) ] ; then \
+		rm -f $(ABSOLUTE_MOD_INSTDIR)/$(TARGET) ; \
+	fi
+
+	rmdir $(ABSOLUTE_MOD_INSTDIR) 2&> /dev/null || true
+        
+	rm -f $(MODPROBE_CONF_FILE) ;
+	/sbin/depmod -a
+
+srpm:
+	@sh create_srpm.sh $(DRIVER_NAME)
+
+clean:
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.ko.unsigned *.order *.symvers *.ko *.rpm x86_64
+
+depend .depend dep:
+	$(CC) $(EXTRA_CFLAGS) -M *.c > .depend
+
+ifeq (.depend,$(wildcard .depend))
+include .depend
+endif
+
