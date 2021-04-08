@@ -59,7 +59,7 @@ typedef enum {
     EP_NOTIFY_IS_BACK_RDY,
     EP_NOTIFY_SYNC_DEVNAME,
 #ifdef EPBACK_PRIVATE
-    EP_NOTIFY_SYNC_SYSDISK,//��ȡϵͳ����Ϣ
+    EP_NOTIFY_SYNC_SYSDISK,//获取系统盘信息
     EP_NOTIFY_OPROM_VERSION,
 #endif
     EP_NOTIFY_MAX_LIMIT
@@ -240,7 +240,7 @@ enum ep_gab_aer_type{
 };
 
 #define EP_SYNC_DISK_ONCE_N (512)
-//ͬ��ϵͳ���������ֵ1
+//同步系统盘数量最大值1
 #define EP_SYNC_SYSDISK_ONCE_N (1)
 #define EP_SYNC_DEVNAME_ONCE_N (512)
 #define EP_MAX_UNIQUE_ID (512)
